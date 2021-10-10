@@ -1,8 +1,11 @@
 DFX_HOME ?= $$HOME/.cache/dfinity/versions/0.8.0
 MOC ?= $(DFX_HOME)/moc
 MOC_FLAGS += --package base "$(DFX_HOME)/base/" 
+BUILD ?= build
+DIDC ?= didc
 
-ledger.wasm: src/Ledger.mo src/Account.mo
+$(BUILD)/ledger.wasm: src/Ledger.mo src/Account.mo src/Block.mo ledger.did
+	mkdir -p $(BUILD)
 	$(MOC) $(MOC_FLAGS) -o $@ -c $<
 
 .PHONY: test
@@ -12,3 +15,10 @@ test:
 		$(MOC) $(MOC_FLAGS) -r "$$f"; \
 		echo "OK"; \
 	done
+
+.PHONY: check
+check:
+	mkdir -p $(BUILD)
+	$(MOC) $(MOC_FLAGS) --idl src/Ledger.mo -o $(BUILD)/ledger.generated.did
+	$(DIDC) check ledger.did $(BUILD)/ledger.generated.did | grep "true"
+
