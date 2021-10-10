@@ -39,10 +39,7 @@ module {
   };
 
   public func nested(field: Nat64, enc: Encoding) : Encoding {
-    let encSize = size(enc);
-    //#Concat ([#Flat (varint((field << 3) | 2)), #Flat (varint(encSize)), enc]) 
-    if (encSize == 0) { #Empty }
-    else { #Concat ([#Flat (varint((field << 3) | 2)), #Flat (varint(encSize)), enc]) }
+    #Concat ([#Flat (varint((field << 3) | 2)), #Flat (varint(size(enc))), enc]) 
   };
 
   public func blob(field: Nat64, b: Blob) : Encoding {

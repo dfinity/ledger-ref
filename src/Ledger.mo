@@ -1,18 +1,19 @@
-import Array     "mo:base/Array";
-import List      "mo:base/List";
-import Blob      "mo:base/Blob";
-import Principal "mo:base/Principal";
-import Option    "mo:base/Option";
-import Error     "mo:base/Error";
-import Text      "mo:base/Text";
-import Time      "mo:base/Time";
-import Int       "mo:base/Int";
-import Nat8      "mo:base/Nat8";
-import Nat32     "mo:base/Nat32";
-import Nat64     "mo:base/Nat64";
+import Array         "mo:base/Array";
+import CertifiedData "mo:base/CertifiedData";
+import List          "mo:base/List";
+import Blob          "mo:base/Blob";
+import Principal     "mo:base/Principal";
+import Option        "mo:base/Option";
+import Error         "mo:base/Error";
+import Text          "mo:base/Text";
+import Time          "mo:base/Time";
+import Int           "mo:base/Int";
+import Nat8          "mo:base/Nat8";
+import Nat32         "mo:base/Nat32";
+import Nat64         "mo:base/Nat64";
 
-import Account   "./Account";
-import Block     "./Block";
+import Account       "./Account";
+import Block         "./Block";
 
 actor Self {
   let permittedDriftNanos : Nat64 = 60_000_000_000;
@@ -85,6 +86,13 @@ actor Self {
     go(0, blocks)
   };
 
+  func tipHash() : ?Block.Hash {
+    switch blocks {
+      case null { null };
+      case (?(tip, _)) { ?Block.hash(tip) };
+    }
+  };
+
   func isAnonymous(p: Principal) : Bool {
     Blob.equal(Principal.toBlob(p), Blob.fromArray([0x04]))
   };
@@ -151,10 +159,12 @@ actor Self {
     };
 
     let newBlock : Block.Block = {
-      parent_hash = null;
+      parent_hash = tipHash();
       transaction = transaction;
       timestamp = { timestamp_nanos = now };
     };
+
+    CertifiedData.set(Block.hash(newBlock));
 
     let blockHeight = List.size(blocks);
     blocks := List.push(newBlock, blocks);
