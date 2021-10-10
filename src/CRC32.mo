@@ -57,7 +57,7 @@ module {
   };
 
   // Returns CRC-32 checksum of a byte array encoded as big-endian.
-  public func ofBlob(blob: Blob) : Nat32 {
+  public func ofBlob(blob : Blob) : Nat32 {
     // See https://en.wikipedia.org/wiki/Cyclic_redundancy_check#CRC-32_algorithm
     var crc = seed;
     for (b in blob.vals()) {

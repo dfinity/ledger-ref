@@ -6,11 +6,11 @@ import Text    "mo:base/Text";
 import Hex     "./Hex";
 import SHA224  "./SHA224";
 
-func sha224(t: Text) : Blob {
+func sha224(t : Text) : Blob {
   Blob.fromArray(SHA224.sha224(Blob.toArray(Text.encodeUtf8(t))))
 };
 
-func check(input: Text, hex: Text) : Bool {
+func check(input : Text, hex : Text) : Bool {
   let left = sha224(input);
   let right = Hex.decode(hex);
   if (Blob.equal(left, right)) {

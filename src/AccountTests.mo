@@ -6,7 +6,7 @@ import Principal "mo:base/Principal";
 import Account   "./Account";
 import Hex       "./Hex";
 
-func check(principalText: Text, subaccountHex: ?Text, addressHex: Text) : Bool {
+func check(principalText : Text, subaccountHex : ?Text, addressHex : Text) : Bool {
   let principal = Principal.fromText(principalText);
   let subaccount = Option.getMapped(subaccountHex, Hex.decode, Account.defaultSubaccount());
   let actualAddress = Account.address(principal, subaccount);

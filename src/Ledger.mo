@@ -41,7 +41,7 @@ actor Self {
     #Err : TransferError;
   };
 
-  func transactionsEqual(l: Block.Transaction, r: Block.Transaction) : Bool {
+  func transactionsEqual(l : Block.Transaction, r : Block.Transaction) : Bool {
     if (l.memo != r.memo) return false;
     if (l.created_at_time.timestamp_nanos != r.created_at_time.timestamp_nanos) return false;
     switch ((l.operation, r.operation)) {
@@ -58,7 +58,7 @@ actor Self {
     }
   };
 
-  func balance(address: Address, blocks: List.List<Block.Block>) : Nat64 {
+  func balance(address : Address, blocks : List.List<Block.Block>) : Nat64 {
     List.foldLeft(blocks, 0 : Nat64, func(sum : Nat64, block : Block.Block) : Nat64 {
       switch (block.transaction.operation) {
         case (#Burn { from; amount; }) {
@@ -76,8 +76,8 @@ actor Self {
     })
   };
 
-  func findTransaction(t: Block.Transaction, blocks: List.List<Block.Block>) : ?BlockIndex {
-    func go(h: BlockIndex, rest: List.List<Block.Block>) : ?BlockIndex {
+  func findTransaction(t : Block.Transaction, blocks : List.List<Block.Block>) : ?BlockIndex {
+    func go(h : BlockIndex, rest : List.List<Block.Block>) : ?BlockIndex {
       switch rest {
         case null { null };
         case (?(block, tail)) { if (transactionsEqual(t, block.transaction)) { ?h } else { go(h + 1, tail) } };
@@ -93,20 +93,20 @@ actor Self {
     }
   };
 
-  func isAnonymous(p: Principal) : Bool {
+  func isAnonymous(p : Principal) : Bool {
     Blob.equal(Principal.toBlob(p), Blob.fromArray([0x04]))
   };
 
   stable var blocks : List.List<Block.Block> = null;
 
   public shared({ caller }) func transfer({
-      memo: Memo;
-      amount: ICP;
-      fee: ICP;
-      subaccount: ?Subaccount;
-      to: Address;
-      created_at_time: ?Timestamp;
-  }): async TransferResult {
+      memo : Memo;
+      amount : ICP;
+      fee : ICP;
+      subaccount : ?Subaccount;
+      to : Address;
+      created_at_time : ?Timestamp;
+  }) : async TransferResult {
     if (isAnonymous(caller)) {
       throw Error.reject("anonymous user is not allowed to transfer funds");
     };
@@ -171,7 +171,7 @@ actor Self {
     #Ok(Nat64.fromNat(blockHeight))
   };
 
-  public func account_balance({ account: Address }): async ICP {
+  public query func account_balance({ account : Address }) : async ICP {
     { e8s = balance(account, blocks); }
   }
 }

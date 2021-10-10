@@ -31,19 +31,19 @@ module {
     timestamp : Timestamp;
   };
 
-  func encodeAcc(field: Nat64, bytes : Blob.Blob) : Encoding.Encoding {
+  func encodeAcc(field : Nat64, bytes : Blob.Blob) : Encoding.Encoding {
     Encoding.nested(field, Encoding.blob(1, bytes))
   };
 
-  func encodeICP(field: Nat64, amount: ICP) : Encoding.Encoding {
+  func encodeICP(field : Nat64, amount : ICP) : Encoding.Encoding {
     Encoding.nested(field, Encoding.nat64(1, amount.e8s))
   };
 
-  func encodeTs(field: Nat64, ts: Timestamp) : Encoding.Encoding {
+  func encodeTs(field : Nat64, ts : Timestamp) : Encoding.Encoding {
     Encoding.nested(field, Encoding.nat64(1, ts.timestamp_nanos))
   };
 
-  func encodeTx(tx: Transaction) : Encoding.Encoding {
+  func encodeTx(tx : Transaction) : Encoding.Encoding {
     #Concat ([
       switch (tx.operation) {
         case (#Burn { from; amount }) {
@@ -61,7 +61,7 @@ module {
     ])
   };
 
-  public func encode(b: Block) : Encoding.Encoding {
+  public func encode(b : Block) : Encoding.Encoding {
     #Concat ([
       switch (b.parent_hash) {
         case null { #Empty };

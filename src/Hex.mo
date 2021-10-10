@@ -6,7 +6,7 @@ import Prelude "mo:base/Prelude";
 import Text    "mo:base/Text";
 
 module {
-  func hexDigit(b: Nat8) : Nat8 {
+  func hexDigit(b : Nat8) : Nat8 {
     switch (b) {
       case (48 or 49 or 50 or 51 or 52 or 53 or 54 or 55 or 56 or 57) { b - 48 };
       case (65 or 66 or 67 or 68 or 69 or 70) { 10 + (b - 65) };
@@ -15,7 +15,7 @@ module {
     }
   };
 
-  public func decode(t: Text) : Blob {
+  public func decode(t : Text) : Blob {
     assert (t.size() % 2 == 0);
     let n = t.size() / 2;
     let h = Blob.toArray(Text.encodeUtf8(t));
