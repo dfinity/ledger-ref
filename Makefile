@@ -4,7 +4,7 @@ MOC_FLAGS += --package base "$(DFX_HOME)/base/"
 BUILD ?= build
 DIDC ?= didc
 
-$(BUILD)/ledger.wasm: src/Ledger.mo src/Account.mo src/Block.mo ledger.did
+$(BUILD)/ledger.wasm: src/*.mo
 	mkdir -p $(BUILD)
 	$(MOC) $(MOC_FLAGS) -o $@ -c $<
 
