@@ -22,7 +22,7 @@ actor Self {
   let defaultSubaccount : Subaccount = Account.defaultSubaccount(); 
 
   public type Subaccount = Account.Subaccount;
-  public type Address = Account.Address;
+  public type AccountIdentifier = Account.AccountIdentifier;
   public type ICP = Block.ICP;
   public type Memo = Block.Memo;
   public type Timestamp = Block.Timestamp;
@@ -58,7 +58,7 @@ actor Self {
     }
   };
 
-  func balance(address : Address, blocks : List.List<Block.Block>) : Nat64 {
+  func balance(address : AccountIdentifier, blocks : List.List<Block.Block>) : Nat64 {
     List.foldLeft(blocks, 0 : Nat64, func(sum : Nat64, block : Block.Block) : Nat64 {
       switch (block.transaction.operation) {
         case (#Burn { from; amount; }) {
@@ -104,7 +104,7 @@ actor Self {
       amount : ICP;
       fee : ICP;
       subaccount : ?Subaccount;
-      to : Address;
+      to : AccountIdentifier;
       created_at_time : ?Timestamp;
   }) : async TransferResult {
     if (isAnonymous(caller)) {
@@ -126,14 +126,13 @@ actor Self {
       return #Err(#TxTooOld { allowed_window_nanos = transactionWindowNanos });
     };
 
-    switch (Account.validateAddress(to)) {
-      case (null) { throw Error.reject(debug_show(to) # " is not a valid address") };
-      case (?_) { };
+    if (not Account.validAccountIdentifier(to)) {
+      throw Error.reject(debug_show(to) # " is not a valid address");
     };
 
-    let debitAddress = Account.address(caller, Option.get(subaccount, defaultSubaccount));
+    let debitAccId = Account.accountIdentifier(caller, Option.get(subaccount, defaultSubaccount));
 
-    let debitBalance = balance(debitAddress, blocks);
+    let debitBalance = balance(debitAccId, blocks);
     if (debitBalance < amount.e8s + fee.e8s) {
       return #Err(#InsufficientFunds { balance = { e8s = 0 } });
     };
@@ -144,7 +143,7 @@ actor Self {
 
     let transaction = {
       operation = #Transfer {
-        from = debitAddress;
+        from = debitAccId;
         to = to;
         amount = amount;
         fee = fee;
@@ -171,7 +170,7 @@ actor Self {
     #Ok(Nat64.fromNat(blockHeight))
   };
 
-  public query func account_balance({ account : Address }) : async ICP {
+  public query func account_balance({ account : AccountIdentifier }) : async ICP {
     { e8s = balance(account, blocks); }
   }
 }

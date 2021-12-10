@@ -14,9 +14,9 @@ module {
   public type Hash = Blob;
   
   public type Operation = {
-    #Burn : { from : Account.Address; amount : ICP; };
-    #Mint : { to : Account.Address; amount : ICP; };
-    #Transfer : { from : Account.Address; to : Account.Address; amount : ICP; fee : ICP; };
+    #Burn : { from : Account.AccountIdentifier; amount : ICP; };
+    #Mint : { to : Account.AccountIdentifier; amount : ICP; };
+    #Transfer : { from : Account.AccountIdentifier; to : Account.AccountIdentifier; amount : ICP; fee : ICP; };
   };
   
   public type Transaction = {

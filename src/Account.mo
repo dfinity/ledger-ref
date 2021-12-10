@@ -8,12 +8,10 @@ import CRC32     "./CRC32";
 import SHA224    "./SHA224";
 
 module {
-  // 28-byte array.
+  // 32-byte array.
   public type AccountIdentifier = Blob.Blob;
   // 32-byte array.
   public type Subaccount = Blob.Blob;
-  // 32-byte array.
-  public type Address = Blob.Blob;
 
   func beBytes(n: Nat32) : [Nat8] {
     func byte(n: Nat32) : Nat8 {
@@ -32,27 +30,21 @@ module {
     hash.write(Blob.toArray(Text.encodeUtf8("account-id")));
     hash.write(Blob.toArray(Principal.toBlob(principal)));
     hash.write(Blob.toArray(subaccount));
-    Blob.fromArray(hash.sum())
-  };
 
-  public func address(principal: Principal, subaccount: Subaccount) : Address {
-    let accountIdBytes = Blob.toArray(accountIdentifier(principal, subaccount));
+    let accountIdBytes = hash.sum();
     let crc32Bytes = beBytes(CRC32.ofArray(accountIdBytes));
+
     Blob.fromArray(Array.append(crc32Bytes, accountIdBytes))
   };
 
-  public func validateAddress(address: Address) : ?AccountIdentifier {
-    if (address.size() != 32) {
-      return null;
+  public func validAccountIdentifier(account : AccountIdentifier) : Bool {
+    if (account.size() != 32) {
+      return false;
     };
-    let a = Blob.toArray(address);
+    let a = Blob.toArray(account);
     let accIdPart    = Array.tabulate(28, func(i: Nat): Nat8 { a[i + 4] });
     let checksumPart = Array.tabulate(4,  func(i: Nat): Nat8 { a[i] });
     let crc32 = CRC32.ofArray(accIdPart);
-    if (Array.equal(beBytes(crc32), checksumPart, Nat8.equal)) {
-      ?Blob.fromArray(accIdPart)
-    } else {
-      null
-    }
+    Array.equal(beBytes(crc32), checksumPart, Nat8.equal)
   };
 }
