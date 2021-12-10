@@ -20,5 +20,5 @@ test:
 check:
 	mkdir -p $(BUILD)
 	$(MOC) $(MOC_FLAGS) --idl src/Ledger.mo -o $(BUILD)/ledger.generated.did
-	$(DIDC) check ledger.did $(BUILD)/ledger.generated.did | grep "true"
+	$(DIDC) check $(BUILD)/ledger.generated.did ledger.did
 
