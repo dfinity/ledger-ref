@@ -41,6 +41,10 @@ actor Self {
     #Err : TransferError;
   };
 
+  func mintingAccountId() : AccountIdentifier {
+    Account.accountIdentifier(Principal.fromActor(Self), defaultSubaccount)
+  };
+
   func transactionsEqual(l : Block.Transaction, r : Block.Transaction) : Bool {
     if (l.memo != r.memo) return false;
     if (l.created_at_time.timestamp_nanos != r.created_at_time.timestamp_nanos) return false;
@@ -132,22 +136,51 @@ actor Self {
 
     let debitAccId = Account.accountIdentifier(caller, Option.get(subaccount, defaultSubaccount));
 
-    let debitBalance = balance(debitAccId, blocks);
-    if (debitBalance < amount.e8s + fee.e8s) {
-      return #Err(#InsufficientFunds { balance = { e8s = 0 } });
-    };
+    let mintingAccId = mintingAccountId();
 
-    if (fee.e8s != expectedFee) {
-      return #Err(#BadFee { expected_fee = { e8s = expectedFee } });
-    };
+    let operation = if (Blob.equal(debitAccId, mintingAccId)) {
+      #Mint {
+        to = to;
+        amount = amount;
+      }
+    } else if (Blob.equal(to, mintingAccId)) {
+      if (fee.e8s != 0) {
+        return #Err(#BadFee { expected_fee = { e8s = 0 } });
+      };
 
-    let transaction = {
-      operation = #Transfer {
+      if (amount.e8s < expectedFee) {
+        throw Error.reject("Cannot BURN less than " # debug_show(expectedFee));
+      };
+
+      let debitBalance = balance(debitAccId, blocks);
+      if (debitBalance < amount.e8s) {
+        return #Err(#InsufficientFunds { balance = { e8s = debitBalance } });
+      };
+
+      #Burn {
+        from = debitAccId;
+        amount = amount;
+      }
+    } else {
+      if (fee.e8s != expectedFee) {
+        return #Err(#BadFee { expected_fee = { e8s = expectedFee } });
+      };
+
+      let debitBalance = balance(debitAccId, blocks);
+      if (debitBalance < amount.e8s + fee.e8s) {
+        return #Err(#InsufficientFunds { balance = { e8s = debitBalance } });
+      };
+
+      #Transfer {
         from = debitAccId;
         to = to;
         amount = amount;
         fee = fee;
-      };
+      }
+    };
+
+    let transaction = {
+      operation = operation;
       memo = memo;
       created_at_time = { timestamp_nanos = txTime };
     };
