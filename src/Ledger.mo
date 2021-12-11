@@ -14,7 +14,7 @@ import Nat64         "mo:base/Nat64";
 
 import Account       "./Account";
 import Block         "./Block";
-
+import Interval      "./Interval";
 
 actor class Ledger(init : {
                      initial_mints : [ { account : Account.AccountIdentifier; amount : { e8s : Nat64 } } ];
@@ -29,6 +29,7 @@ actor class Ledger(init : {
   public type BlockIndex = Block.Index;
   public type BlockChain = List.List<Block.Block>;
 
+  let maxBlocksPerQuery : Nat64 = 100;
   let permittedDriftNanos : Nat64 = 60_000_000_000;
   let expectedFee : Nat64 = 10_000;
   let transactionWindowNanos : Nat64 = 24 * 60 * 60 * 1_000_000_000;
@@ -46,6 +47,27 @@ actor class Ledger(init : {
   public type TransferResult = {
     #Ok  : BlockIndex;
     #Err : TransferError;
+  };
+
+  public type FetchArchiveResult = {
+    #Ok : { blocks : [Block.Block] };
+    #Err : { #BadFirstBlockIndex : { requested_index : BlockIndex; first_valid_index : BlockIndex } };
+  };
+
+  public type FetchArchiveFn = shared query ({ from : BlockIndex; len : Nat64 }) -> async (FetchArchiveResult);
+
+  public type ArchiveRecord = {
+    from : BlockIndex;
+    len : Nat64;
+    callback : FetchArchiveFn;
+  };
+
+  public type FetchBlocksResponse = {
+    chain_len : Nat64;
+    certificate : ?Blob;
+    blocks : [Block.Block];
+    first_block_index : BlockIndex;
+    archived_blocks : [ArchiveRecord];
   };
 
   func mintingAccountId() : AccountIdentifier {
@@ -73,7 +95,7 @@ actor class Ledger(init : {
   };
 
   func balance(address : AccountIdentifier, blocks : BlockChain) : Nat64 {
-    List.foldLeft(blocks, 0 : Nat64, func(sum : Nat64, block : Block.Block) : Nat64 {
+    List.foldRight(blocks, 0 : Nat64, func(block : Block.Block, sum : Nat64) : Nat64 {
       switch (block.transaction.operation) {
         case (#Burn { from; amount; }) {
           if (from == address) { sum - amount.e8s } else { sum }
@@ -244,5 +266,48 @@ actor class Ledger(init : {
 
   public query func account_balance({ account : AccountIdentifier }) : async ICP {
     { e8s = balance(account, blocks); }
+  };
+
+  func block_range_as_array(range : Interval.Interval) : [Block.Block] {
+    let chainLen = Nat64.fromNat(List.size(blocks));
+    assert Interval.isSubIntervalOf(range, Interval.fromLength(0, chainLen));
+
+    let blocksToSkip = Nat64.toNat(chainLen - range.to);
+    let blocksToTake = Nat64.toNat(Interval.length(range));
+
+    // The blocks are stored in the reverse order, that's why we need an extra reversal.
+    List.toArray(List.reverse(List.take(List.drop(blocks, blocksToSkip), blocksToTake)))
+  };
+
+  public query func fetch_archive({from : BlockIndex; len : Nat64 }) : async FetchArchiveResult {
+    let blockRange = Interval.fromLength(0, Nat64.fromNat(List.size(blocks)));
+    let responseRange = Interval.head(Interval.intersect(Interval.fromLength(from, len), blockRange), maxBlocksPerQuery);
+
+    #Ok({
+      blocks = block_range_as_array(responseRange);
+    })
+  };
+
+  public query func fetch_blocks({ from : BlockIndex; len : Nat64 }) : async FetchBlocksResponse {
+    let chainLen = Nat64.fromNat(List.size(blocks));
+
+    let blockRange = Interval.fromLength(0, chainLen);
+    let requestedRange = Interval.fromLength(from, len);
+    let responseRange = Interval.tail(Interval.intersect(blockRange, requestedRange), maxBlocksPerQuery);
+    let leftOver = Interval.betail(Interval.intersect(blockRange, requestedRange), Interval.length(responseRange));
+
+    let certificate = if (chainLen > 0 and Interval.contains(responseRange, chainLen - 1)) { CertifiedData.getCertificate() } else { null };
+
+    {
+      chain_len = chainLen;
+      certificate = certificate;
+      blocks = block_range_as_array(responseRange);
+      first_block_index = responseRange.from;
+      archived_blocks = if (not Interval.isEmpty(leftOver)) {
+                          [{ from = leftOver.from; len = Interval.length(leftOver); callback = fetch_archive; }]
+                        } else {
+                          []
+                        };
+    }
   }
 }
