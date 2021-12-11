@@ -15,11 +15,11 @@ import Nat64         "mo:base/Nat64";
 import Account       "./Account";
 import Block         "./Block";
 
-actor Self {
-  let permittedDriftNanos : Nat64 = 60_000_000_000;
-  let expectedFee : Nat64 = 10_000;
-  let transactionWindowNanos : Nat64 = 24 * 60 * 60 * 1_000_000_000;
-  let defaultSubaccount : Subaccount = Account.defaultSubaccount(); 
+
+actor class Ledger(init : {
+                     initial_mints : [ { account : Account.AccountIdentifier; amount : { e8s : Nat64 } } ];
+                     minting_account : ?Account.AccountIdentifier;
+                  }) = this {
 
   public type Subaccount = Account.Subaccount;
   public type AccountIdentifier = Account.AccountIdentifier;
@@ -27,6 +27,13 @@ actor Self {
   public type Memo = Block.Memo;
   public type Timestamp = Block.Timestamp;
   public type BlockIndex = Block.Index;
+  public type BlockChain = List.List<Block.Block>;
+
+  let permittedDriftNanos : Nat64 = 60_000_000_000;
+  let expectedFee : Nat64 = 10_000;
+  let transactionWindowNanos : Nat64 = 24 * 60 * 60 * 1_000_000_000;
+  let defaultSubaccount : Subaccount = Account.defaultSubaccount(); 
+
 
   public type TransferError = {
     #BadFee : { expected_fee : ICP };
@@ -42,7 +49,10 @@ actor Self {
   };
 
   func mintingAccountId() : AccountIdentifier {
-    Account.accountIdentifier(Principal.fromActor(Self), defaultSubaccount)
+    switch (init.minting_account) {
+      case (?acc) { acc };
+      case null { Account.accountIdentifier(Principal.fromActor(this), defaultSubaccount) };
+    }
   };
 
   func transactionsEqual(l : Block.Transaction, r : Block.Transaction) : Bool {
@@ -62,7 +72,7 @@ actor Self {
     }
   };
 
-  func balance(address : AccountIdentifier, blocks : List.List<Block.Block>) : Nat64 {
+  func balance(address : AccountIdentifier, blocks : BlockChain) : Nat64 {
     List.foldLeft(blocks, 0 : Nat64, func(sum : Nat64, block : Block.Block) : Nat64 {
       switch (block.transaction.operation) {
         case (#Burn { from; amount; }) {
@@ -80,8 +90,8 @@ actor Self {
     })
   };
 
-  func findTransaction(t : Block.Transaction, blocks : List.List<Block.Block>) : ?BlockIndex {
-    func go(h : BlockIndex, rest : List.List<Block.Block>) : ?BlockIndex {
+  func findTransaction(t : Block.Transaction, blocks : BlockChain) : ?BlockIndex {
+    func go(h : BlockIndex, rest : BlockChain) : ?BlockIndex {
       switch rest {
         case null { null };
         case (?(block, tail)) { if (transactionsEqual(t, block.transaction)) { ?h } else { go(h + 1, tail) } };
@@ -101,7 +111,36 @@ actor Self {
     Blob.equal(Principal.toBlob(p), Blob.fromArray([0x04]))
   };
 
-  stable var blocks : List.List<Block.Block> = null;
+  func makeGenesisChain() : BlockChain {
+    let now = Nat64.fromNat(Int.abs(Time.now()));
+
+    let (hash, blocks) = Array.foldLeft<{ account : AccountIdentifier; amount : ICP }, (?Block.Hash, BlockChain)>(
+        init.initial_mints,
+        (null : ?Block.Hash, null : BlockChain),
+        func((parent_hash : ?Block.Hash, chain : BlockChain), { account: AccountIdentifier; amount : ICP }) : (?Block.Hash, BlockChain) {
+
+      let block : Block.Block = {
+        parent_hash = parent_hash;
+        transaction = {
+          operation = #Mint({ to = account; amount = amount; });
+          memo = 0;
+          created_at_time = { timestamp_nanos = now };
+        };
+        timestamp = { timestamp_nanos = now };
+      };
+      let hash = Block.hash(block);
+      (?hash, List.push(block, chain))
+    });
+
+    switch (hash) {
+      case (?hash) { CertifiedData.set(hash); };
+      case null { CertifiedData.set(Blob.fromArray(Array.freeze(Array.init<Nat8>(32, 0)))); };
+    };
+
+    blocks
+  };
+
+  stable var blocks : BlockChain = makeGenesisChain();
 
   public shared({ caller }) func transfer({
       memo : Memo;

@@ -6,7 +6,7 @@ DIDC ?= didc
 
 $(BUILD)/ledger.wasm: src/*.mo
 	mkdir -p $(BUILD)
-	$(MOC) $(MOC_FLAGS) -o $@ -c $<
+	$(MOC) $(MOC_FLAGS) -o $@ -c src/Ledger.mo
 
 .PHONY: test
 test:
@@ -20,5 +20,7 @@ test:
 check:
 	mkdir -p $(BUILD)
 	$(MOC) $(MOC_FLAGS) --idl src/Ledger.mo -o $(BUILD)/ledger.generated.did
-	$(DIDC) check $(BUILD)/ledger.generated.did ledger.did
+	# We need an unreleased version of DIDC to be able to check subtyping
+	# between an actor class and an actor.
+	# $(DIDC) check $(BUILD)/ledger.generated.did ledger.did
 
