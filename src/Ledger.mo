@@ -49,20 +49,20 @@ actor class Ledger(init : {
     #Err : TransferError;
   };
 
-  public type FetchArchiveResult = {
+  public type QueryArchiveResult = {
     #Ok : { blocks : [Block.Block] };
     #Err : { #BadFirstBlockIndex : { requested_index : BlockIndex; first_valid_index : BlockIndex } };
   };
 
-  public type FetchArchiveFn = shared query ({ from : BlockIndex; len : Nat64 }) -> async (FetchArchiveResult);
+  public type QueryArchiveFn = shared query ({ from : BlockIndex; len : Nat64 }) -> async (QueryArchiveResult);
 
   public type ArchiveRecord = {
     from : BlockIndex;
     len : Nat64;
-    callback : FetchArchiveFn;
+    callback : QueryArchiveFn;
   };
 
-  public type FetchBlocksResponse = {
+  public type QueryBlocksResponse = {
     chain_len : Nat64;
     certificate : ?Blob;
     blocks : [Block.Block];
@@ -268,10 +268,10 @@ actor class Ledger(init : {
     { e8s = balance(account, blocks); }
   };
 
-  func block_range_as_array(range : Interval.Interval) : [Block.Block] {
+  func block_range_as_array(requestedRange : Interval.Interval) : [Block.Block] {
     let chainLen = Nat64.fromNat(List.size(blocks));
-    assert Interval.isSubIntervalOf(range, Interval.fromLength(0, chainLen));
 
+    let range = Interval.intersect(requestedRange, Interval.fromLength(0, chainLen));
     let blocksToSkip = Nat64.toNat(chainLen - range.to);
     let blocksToTake = Nat64.toNat(Interval.length(range));
 
@@ -279,7 +279,7 @@ actor class Ledger(init : {
     List.toArray(List.reverse(List.take(List.drop(blocks, blocksToSkip), blocksToTake)))
   };
 
-  public query func fetch_archive({from : BlockIndex; len : Nat64 }) : async FetchArchiveResult {
+  public query func query_archive({ from : BlockIndex; len : Nat64 }) : async QueryArchiveResult {
     let blockRange = Interval.fromLength(0, Nat64.fromNat(List.size(blocks)));
     let responseRange = Interval.head(Interval.intersect(Interval.fromLength(from, len), blockRange), maxBlocksPerQuery);
 
@@ -288,7 +288,17 @@ actor class Ledger(init : {
     })
   };
 
-  public query func fetch_blocks({ from : BlockIndex; len : Nat64 }) : async FetchBlocksResponse {
+  public func fetch_blocks({ from : BlockIndex; len : Nat64 }) : async { blocks : [Block.Block]; chain_len : Nat64 } {
+    let chainLen = Nat64.fromNat(List.size(blocks));
+    let requestedRange = Interval.fromLength(from, len);
+
+    {
+      chain_len = chainLen;
+      blocks = block_range_as_array(requestedRange);
+    }
+  };
+
+  public query func query_blocks({ from : BlockIndex; len : Nat64 }) : async QueryBlocksResponse {
     let chainLen = Nat64.fromNat(List.size(blocks));
 
     let blockRange = Interval.fromLength(0, chainLen);
@@ -304,7 +314,7 @@ actor class Ledger(init : {
       blocks = block_range_as_array(responseRange);
       first_block_index = responseRange.from;
       archived_blocks = if (not Interval.isEmpty(leftOver)) {
-                          [{ from = leftOver.from; len = Interval.length(leftOver); callback = fetch_archive; }]
+                          [{ from = leftOver.from; len = Interval.length(leftOver); callback = query_archive; }]
                         } else {
                           []
                         };

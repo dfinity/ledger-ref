@@ -112,12 +112,15 @@ type Block = record {
     timestamp : TimeStamp;
 };
 
-// The result of a "fetch_blocks" call.
+// The result of a "query_blocks" call.
 //
 // The structure of the result is somewhat complicated because the main ledger canister might
 // not have all the blocks that the caller requested: One or more "archive" canisters might
 // store some of the requested blocks.
-type FetchBlocksResponse = record {
+//
+// Note: as of Q4 2021 when this interface is authored, the IC doesn't support making nested 
+// query calls within a query call.
+type QueryBlocksResponse = record {
     // The total number of blocks in the chain.
     // If the chain length is positive, the index of the last block is `chain_len - 1`.
     chain_len : nat64;
@@ -156,7 +159,7 @@ type FetchBlocksResponse = record {
         // The function that should be called to fetch the archived blocks.
         // The range of the blocks accessible using this function is given by [from]
         // and [len] fields above.
-        callback : FetchArchiveFn;
+        callback : QueryArchiveFn;
     };
 };
 
@@ -178,22 +181,31 @@ type BlockRange = record {
     blocks : vec Block;
 };
 
-// An error indicating that the arguments passed to [FetchArchiveFn] were invalid.
-type FetchArchiveError = variant {
+// An error indicating that the arguments passed to [QueryArchiveFn] were invalid.
+type QueryArchiveError = variant {
     // [FetchBlocksArgs.from] argument was smaller than the first block
     // served by the canister that received the request.
     BadFirstBlockIndex : record { requested_index : BlockIndex; first_valid_index : BlockIndex; };
 };
 
-type FetchArchiveResult = variant {
+type QueryArchiveResult = variant {
     // Successfully fetched zero or more blocks.
     Ok : BlockRange;
     // The [FetchBlocksArgs] request was invalid.
-    Err : FetchArchiveError;
+    Err : QueryArchiveError;
 };
 
 // A function that is used for fetching archived ledger blocks.
-type FetchArchiveFn = func (FetchBlocksArgs) -> (FetchArchiveResult) query;
+type QueryArchiveFn = func (FetchBlocksArgs) -> (QueryArchiveResult) query;
+
+// The result of a [fetch_block] call.
+type FetchBlocksResponse = record {
+    // Same as [BlockRange.blocks].
+    blocks : vec Block;
+    
+    // Same as [QueryBlockResponse.chain_len].
+    chain_len : nat64;
+};
 
 service : {
   // Transfers tokens from a subaccount of the caller to the destination address.
@@ -204,6 +216,14 @@ service : {
   // Returns the amount of ICP on the specified account.
   account_balance : (AccountBalanceArgs) -> (ICP) query;
 
+  // Queries blocks in the specified range.
+  //
+  // NOTE: This method is designed for calls from clients outside of the IC (for example,
+  // Rosetta API nodes and web frontends).
+  // Prefer [fetch_blocks] interface if you want to get blocks inside of a canister.
+  query_blocks : (FetchBlocksArgs) -> (QueryBlocksResponse) query;
+
   // Fetches blocks in the specified range.
-  fetch_blocks : (FetchBlocksArgs) -> (FetchBlocksResponse) query;
+  // The result might contain less blocks than the client requested.
+  fetch_blocks : (FetchBlocksArgs) -> (FetchBlocksResponse);
 }
